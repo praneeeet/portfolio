@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useScroll, useMotionValueEvent, useTransform } from "framer-motion";
 
 export default function ScrollyCanvas({ children }: { children?: React.ReactNode }) {
@@ -10,43 +10,7 @@ export default function ScrollyCanvas({ children }: { children?: React.ReactNode
   const [isLoaded, setIsLoaded] = useState(false);
   const frameCount = 66;
 
-  useEffect(() => {
-    // Preload all images
-    const imgArray: HTMLImageElement[] = [];
-    let loadedCount = 0;
-    
-    for (let i = 0; i < frameCount; i++) {
-      const img = new Image();
-      img.src = `/sequence/frame_${i.toString().padStart(2, "0")}.webp`;
-      img.onload = () => {
-        loadedCount++;
-        if (loadedCount === 1) {
-          renderFrame(0, imgArray);
-        }
-        if (loadedCount === frameCount) {
-          setIsLoaded(true);
-        }
-      };
-      img.onerror = () => {
-        console.error(`Failed to load image: ${img.src}`);
-        loadedCount++;
-        if (loadedCount === frameCount) {
-          setIsLoaded(true);
-        }
-      };
-      imgArray.push(img);
-    }
-    setImages(imgArray);
-  }, []);
-
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end end"],
-  });
-
-  const frameIndex = useTransform(scrollYProgress, [0, 1], [0, frameCount - 1]);
-
-  const renderFrame = (index: number, imgList = images) => {
+  const renderFrame = useCallback((index: number, imgList = images) => {
     if (!canvasRef.current || !imgList[index]) return;
     
     const canvas = canvasRef.current;
@@ -76,7 +40,49 @@ export default function ScrollyCanvas({ children }: { children?: React.ReactNode
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // Draw image scaling to cover canvas exactly like object-fit
     ctx.drawImage(img, offsetX, offsetY, renderWidth, renderHeight);
-  };
+  }, [images]);
+
+  const hasInitialized = useRef(false);
+  useEffect(() => {
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+    
+    // Preload all images
+    const imgArray: HTMLImageElement[] = [];
+    let loadedCount = 0;
+    
+    for (let i = 0; i < frameCount; i++) {
+      const img = new Image();
+      img.src = `/sequence/frame_${i.toString().padStart(2, "0")}.webp`;
+      img.onload = () => {
+        loadedCount++;
+        if (loadedCount === 1) {
+          renderFrame(0, imgArray);
+        }
+        if (loadedCount === frameCount) {
+          setIsLoaded(true);
+        }
+      };
+      img.onerror = () => {
+        console.error(`Failed to load image: ${img.src}`);
+        loadedCount++;
+        if (loadedCount === frameCount) {
+          setIsLoaded(true);
+        }
+      };
+      imgArray.push(img);
+    }
+    setImages(imgArray);
+  }, [renderFrame]);
+
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+    offset: ["start start", "end end"],
+  });
+
+  const frameIndex = useTransform(scrollYProgress, [0, 1], [0, frameCount - 1]);
+
+
 
   useMotionValueEvent(frameIndex, "change", (latestVal) => {
     renderFrame(Math.round(latestVal));
@@ -94,7 +100,7 @@ export default function ScrollyCanvas({ children }: { children?: React.ReactNode
     handleResize(); // Init canvas size
 
     return () => window.removeEventListener("resize", handleResize);
-  }, [images]);
+  }, [images, frameIndex, renderFrame]);
 
   return (
     <div ref={containerRef} className="relative w-full h-[500vh]">

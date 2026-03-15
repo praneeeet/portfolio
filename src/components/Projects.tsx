@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Github, Mail, Phone, ExternalLink, GraduationCap, Code2, Cpu, Globe } from "lucide-react";
+import { Github, Mail, Phone, GraduationCap, Code2, Cpu, Globe } from "lucide-react";
 
 export default function Projects() {
   const skills = {
